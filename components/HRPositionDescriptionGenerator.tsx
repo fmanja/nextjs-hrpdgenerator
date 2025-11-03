@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, FormEvent, ChangeEvent } from 'react';
+import { FileText, Home, Upload, BookOpen, Settings, Copy, Check } from 'lucide-react';
+import { ThemeToggleCompact } from '@/components/ui/theme-toggle';
 import type {
   JobDescriptionFormData,
   GenerateDescriptionResponse
@@ -14,6 +16,8 @@ const HRPositionDescriptionGenerator: React.FC = () => {
   });
   const [generatedDescription, setGeneratedDescription] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
+  const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Handle input changes
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -35,6 +39,7 @@ const HRPositionDescriptionGenerator: React.FC = () => {
     }
 
     setIsLoading(true);
+    setCurrentStep(2);
 
     try {
       console.log('Making API call to backend server...');
@@ -68,230 +73,245 @@ const HRPositionDescriptionGenerator: React.FC = () => {
       }
 
       setGeneratedDescription(data.description);
-      // Update the step indicator to show progress
-      const stepCircle = document.querySelector('circle[cx="350"]');
-      if (stepCircle) {
-        stepCircle.setAttribute('fill', '#ff9900');
-      }
+      setCurrentStep(3);
 
     } catch (error: any) {
       console.error('Error details:', error);
       alert(`Error generating description: ${error.message}`);
+      setCurrentStep(1);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedDescription);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const steps = [
+    { number: 1, label: 'Define' },
+    { number: 2, label: 'Generate' },
+    { number: 3, label: 'Finalize' },
+  ];
+
   return (
-    <div className="hr-generator-container">
-      <svg viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
-        {/* Background */}
-        <rect width="800" height="800" fill="#f5f5f5"/>
-
-        {/* Top Navigation Bar */}
-        <rect x="0" y="0" width="800" height="60" fill="#232f3e"/>
-        <text x="30" y="38" fontFamily="Arial" fontSize="22" fill="white">HR Position Description Generator</text>
-        <rect x="650" y="15" width="120" height="30" rx="15" fill="#ff9900"/>
-        <text x="710" y="37" fontFamily="Arial" fontSize="16" fill="white" textAnchor="middle">Sign Out</text>
-
-        {/* Left Sidebar */}
-        <rect x="0" y="60" width="200" height="740" fill="#eaeaea"/>
-        <rect x="20" y="90" width="160" height="40" rx="5" fill="#d1d1d1"/>
-        <text x="100" y="115" fontFamily="Arial" fontSize="14" fill="#333" textAnchor="middle">Dashboard</text>
-        <rect x="20" y="140" width="160" height="40" rx="5" fill="#ff9900"/>
-        <text x="100" y="165" fontFamily="Arial" fontSize="14" fill="white" textAnchor="middle">Generate PD</text>
-        <rect x="20" y="190" width="160" height="40" rx="5" fill="#d1d1d1"/>
-        <text x="100" y="215" fontFamily="Arial" fontSize="14" fill="#333" textAnchor="middle">Upload Template</text>
-        <rect x="20" y="240" width="160" height="40" rx="5" fill="#d1d1d1"/>
-        <text x="100" y="265" fontFamily="Arial" fontSize="14" fill="#333" textAnchor="middle">PD Library</text>
-        <rect x="20" y="290" width="160" height="40" rx="5" fill="#d1d1d1"/>
-        <text x="100" y="315" fontFamily="Arial" fontSize="14" fill="#333" textAnchor="middle">Settings</text>
-
-        {/* Main Content Area */}
-        <rect x="210" y="70" width="580" height="720" fill="white" rx="5"/>
-        <text x="240" y="110" fontFamily="Arial" fontSize="24" fill="#333">Generate Position Description</text>
-
-        {/* Step indicators */}
-        <circle cx="270" cy="150" r="20" fill="#ff9900"/>
-        <text x="270" y="155" fontFamily="Arial" fontSize="16" fill="white" textAnchor="middle">1</text>
-        <line x1="290" y1="150" x2="330" y2="150" stroke="#d1d1d1" strokeWidth="2"/>
-        <circle cx="350" cy="150" r="20" fill="#d1d1d1"/>
-        <text x="350" y="155" fontFamily="Arial" fontSize="16" fill="white" textAnchor="middle">2</text>
-        <line x1="370" y1="150" x2="410" y2="150" stroke="#d1d1d1" strokeWidth="2"/>
-        <circle cx="430" cy="150" r="20" fill="#d1d1d1"/>
-        <text x="430" y="155" fontFamily="Arial" fontSize="16" fill="white" textAnchor="middle">3</text>
-
-        <text x="270" y="190" fontFamily="Arial" fontSize="16" fill="#333" textAnchor="middle">Define</text>
-        <text x="350" y="190" fontFamily="Arial" fontSize="16" fill="#333" textAnchor="middle">Generate</text>
-        <text x="430" y="190" fontFamily="Arial" fontSize="16" fill="#333" textAnchor="middle">Finalize</text>
-
-        {/* Form Area */}
-        <foreignObject x="240" y="230" width="500" height="600">
-          <form onSubmit={handleSubmit} style={{ fontFamily: 'Arial' }}>
-            <label style={{ fontSize: '16px', fontWeight: 'bold', color: '#333' }}>Position Details</label>
-
-            <div style={{ marginTop: '20px' }}>
-              <label style={{ fontSize: '14px', color: '#333' }}>Job Title</label>
-              <input
-                type="text"
-                name="jobTitle"
-                value={formData.jobTitle}
-                onChange={handleInputChange}
-                placeholder="Senior Software Engineer"
-                style={{
-                  width: '100%',
-                  height: '40px',
-                  padding: '0 10px',
-                  marginTop: '5px',
-                  border: '1px solid #d1d1d1',
-                  borderRadius: '4px',
-                  backgroundColor: '#f9f9f9'
-                }}
-              />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
+          <div className="flex flex-col flex-grow bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+            <div className="flex items-center h-16 px-4 border-b border-gray-200 dark:border-gray-800">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">AI Position Description Generator</h1>
             </div>
-
-            <div style={{ marginTop: '20px' }}>
-              <label style={{ fontSize: '14px', color: '#333' }}>Department</label>
-              <input
-                type="text"
-                name="department"
-                value={formData.department}
-                onChange={handleInputChange}
-                placeholder="Engineering"
-                style={{
-                  width: '100%',
-                  height: '40px',
-                  padding: '0 10px',
-                  marginTop: '5px',
-                  border: '1px solid #d1d1d1',
-                  borderRadius: '4px',
-                  backgroundColor: '#f9f9f9'
-                }}
-              />
-            </div>
-
-            <div style={{ marginTop: '20px' }}>
-              <label style={{ fontSize: '14px', color: '#333' }}>Experience Level</label>
-              <input
-                type="text"
-                name="experienceLevel"
-                value={formData.experienceLevel}
-                onChange={handleInputChange}
-                placeholder="5+ years"
-                style={{
-                  width: '100%',
-                  height: '40px',
-                  padding: '0 10px',
-                  marginTop: '5px',
-                  border: '1px solid #d1d1d1',
-                  borderRadius: '4px',
-                  backgroundColor: '#f9f9f9'
-                }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                marginTop: '20px',
-                width: '100%',
-                height: '50px',
-                backgroundColor: isLoading ? '#cccccc' : '#ff9900',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: isLoading ? 'not-allowed' : 'pointer',
-                fontSize: '16px',
-                fontWeight: 'bold',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            >
-              {isLoading ? 'Generating...' : 'Generate Description'}
-            </button>
-          </form>
-        </foreignObject>
-      </svg>
-
-      {generatedDescription && (
-        <div style={{
-          position: 'relative',
-          margin: '20px auto',
-          padding: '20px',
-          maxWidth: '780px',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          zIndex: 1
-        }}>
-          <h3 style={{
-            marginBottom: '15px',
-            color: '#232f3e',
-            borderBottom: '2px solid #ff9900',
-            paddingBottom: '10px',
-            fontSize: '18px',
-            fontFamily: 'Arial'
-          }}>
-            Generated Position Description
-          </h3>
-          <div style={{
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'Arial',
-            fontSize: '14px',
-            lineHeight: '1.6',
-            color: '#333',
-            backgroundColor: '#f9f9f9',
-            padding: '15px',
-            borderRadius: '4px',
-            border: '1px solid #d1d1d1',
-            marginBottom: '15px'
-          }}>
-            {generatedDescription}
-          </div>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px'
-          }}>
-            <button
-              onClick={() => {navigator.clipboard.writeText(generatedDescription)}}
-              style={{
-                padding: '8px 15px',
-                backgroundColor: '#232f3e',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}
-            >
-              <span>Copy to Clipboard</span>
-            </button>
+            <nav className="flex-1 space-y-1 px-2 py-4">
+              <a
+                href="#"
+                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                <Home className="mr-3 h-5 w-5" />
+                Dashboard
+              </a>
+              <a
+                href="#"
+                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+              >
+                <FileText className="mr-3 h-5 w-5" />
+                Generate PD
+              </a>
+              <a
+                href="#"
+                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                <Upload className="mr-3 h-5 w-5" />
+                Upload Template
+              </a>
+              <a
+                href="#"
+                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                <BookOpen className="mr-3 h-5 w-5" />
+                PD Library
+              </a>
+              <a
+                href="#"
+                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                <Settings className="mr-3 h-5 w-5" />
+                Settings
+              </a>
+            </nav>
           </div>
         </div>
-      )}
 
+        {/* Main content */}
+        <div className="lg:pl-64 flex-1">
+          {/* Top bar */}
+          <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+            <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+              <div className="flex flex-1 items-center">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Generate Position Description</h2>
+              </div>
+            </div>
+            <div className="flex items-center gap-x-4 lg:gap-x-6">
+              <ThemeToggleCompact />
+            </div>
+          </div>
+
+          {/* Page content */}
+          <main className="py-6">
+            <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+              {/* Step indicators */}
+              <div className="mb-8">
+                <div className="flex items-center justify-center">
+                  {steps.map((step, index) => (
+                    <React.Fragment key={step.number}>
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold text-sm transition-colors ${
+                            currentStep >= step.number
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          {step.number}
+                        </div>
+                        <span className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                          {step.label}
+                        </span>
+                      </div>
+                      {index < steps.length - 1 && (
+                        <div
+                          className={`h-0.5 w-16 mx-2 mt-[-20px] ${
+                            currentStep > step.number
+                              ? 'bg-primary'
+                              : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
+                        />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+
+              {/* Form Card */}
+              <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6 mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Position Details</h3>
+                <form onSubmit={handleSubmit}>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Job Title
+                      </label>
+                      <input
+                        type="text"
+                        id="jobTitle"
+                        name="jobTitle"
+                        value={formData.jobTitle}
+                        onChange={handleInputChange}
+                        placeholder="Senior Software Engineer"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="department" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Department
+                      </label>
+                      <input
+                        type="text"
+                        id="department"
+                        name="department"
+                        value={formData.department}
+                        onChange={handleInputChange}
+                        placeholder="Engineering"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="experienceLevel" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Experience Level
+                      </label>
+                      <input
+                        type="text"
+                        id="experienceLevel"
+                        name="experienceLevel"
+                        value={formData.experienceLevel}
+                        onChange={handleInputChange}
+                        placeholder="5+ years"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="mt-6 w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-4 rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? 'Generating...' : 'Generate Description'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Generated Description Card */}
+              {generatedDescription && (
+                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-6">
+                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      Generated Position Description
+                    </h3>
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md transition-colors"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-4 w-4" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="prose dark:prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 p-4 rounded-md border border-gray-200 dark:border-gray-700">
+                      {generatedDescription}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* Loading Overlay */}
       {isLoading && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          zIndex: 1000
-        }}>
-          <div style={{
-            textAlign: 'center',
-            color: '#232f3e'
-          }}>
-            <div>Generating description...</div>
-            <div style={{ marginTop: '10px', fontSize: '12px' }}>This may take a few seconds</div>
+        <div className="fixed inset-0 bg-black/20 dark:bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                Generating description...
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                This may take a few seconds
+              </p>
+            </div>
           </div>
         </div>
       )}

@@ -212,12 +212,34 @@ Ensure your AWS IAM user/role has the following permissions:
     {
       "Effect": "Allow",
       "Action": [
-        "bedrock:InvokeModel",
-        "bedrock:InvokeModelWithResponseStream"
+        "bedrock:*"
       ],
       "Resource": [
-        "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+        "arn:aws:bedrock:*::foundation-model/*",
+        "arn:aws:bedrock:*:*:custom-model/*",
+        "arn:aws:bedrock:*:*:provisioned-model/*",
+        "arn:aws:bedrock:*:*:agent/*",
+        "arn:aws:bedrock:*:*:knowledge-base/*",
+        "arn:aws:bedrock:*:*:flow/*",
+        "arn:aws:bedrock:*:*:prompt/*",
+        "arn:aws:bedrock:*:*:guardrail/*"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels",
+        "bedrock:ListCustomModels",
+        "bedrock:ListFoundationModelAgreements",
+        "bedrock:GetFoundationModel",
+        "bedrock:GetCustomModel",
+        "bedrock:GetFoundationModelAvailability",
+        "bedrock:GetUseCaseForModelAccess",
+        "bedrock:ListTagsForResource",
+        "bedrock:TagResource",
+        "bedrock:UntagResource"
+      ],
+      "Resource": "*"
     }
   ]
 }

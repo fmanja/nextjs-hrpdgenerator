@@ -2,10 +2,7 @@ import HRPositionDescriptionGenerator from '@/components/HRPositionDescriptionGe
 
 export default function Home() {
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5'
-    }}>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <HRPositionDescriptionGenerator />
     </div>
   );
