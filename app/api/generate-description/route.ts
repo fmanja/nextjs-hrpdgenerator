@@ -9,8 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { bedrockClient, BEDROCK_MODEL_ID } from '@/lib/bedrock';
+import { generateDescriptionRequestSchema } from '@/lib/validation';
 import type {
-  GenerateDescriptionRequest,
   GenerateDescriptionResponse,
   BedrockClaudeRequest,
   BedrockClaudeResponse,
@@ -19,38 +19,55 @@ import type {
 export async function POST(request: NextRequest) {
   try {
     // Parse the request body
-    const body: GenerateDescriptionRequest = await request.json();
-    const { jobTitle, department, experienceLevel } = body;
+    const body = await request.json();
 
-    // Validate input
-    if (!jobTitle || !department || !experienceLevel) {
+    // Validate input with Zod
+    const validationResult = generateDescriptionRequestSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields: jobTitle, department, or experienceLevel',
+          error: 'Validation failed',
+          details: errors,
         },
         { status: 400 }
       );
     }
 
-    // Construct the prompt for Claude
-    const systemPrompt = "You are an experienced HR professional who creates clear, professional job descriptions.";
+    const { jobTitle, department, payScaleGrade, jobFamily, series } = validationResult.data;
 
-    const userPrompt = `Create a professional job description for the following position:
+    // Construct the prompt for Claude
+    const systemPrompt = "You are an experienced HR professional who creates clear, professional job descriptions for federal government positions. You understand federal pay scales, grade levels, and how they relate to position requirements and qualifications.";
+
+    const userPrompt = `Create a professional federal government job description for the following position:
 
 Job Title: ${jobTitle}
 Department: ${department}
-Experience Level: ${experienceLevel}
+Pay Scale & Grade: ${payScaleGrade}
+Job Family: ${jobFamily}
+Series: ${series}
+
+IMPORTANT: The pay scale and grade (${payScaleGrade}) is critical for determining the appropriate level of responsibility, required qualifications, and experience level. Ensure that:
+- The job responsibilities match the pay scale/grade level
+- Required qualifications are appropriate for the pay scale/grade
+- Experience requirements align with the pay scale/grade expectations
+- The position description reflects the appropriate level of complexity and responsibility for ${payScaleGrade}
 
 Please structure the job description with the following sections:
 
 1. About the Role
-2. Key Responsibilities (5-7 bullet points)
-3. Required Qualifications
+2. Key Responsibilities (5-7 bullet points appropriate for ${payScaleGrade})
+3. Required Qualifications (must align with ${payScaleGrade} requirements)
 4. Preferred Qualifications
 5. Benefits and Perks
 
-Make it professional, clear, and compelling.`;
+Make it professional, clear, and compelling. Ensure all qualifications and responsibilities are appropriate for a ${payScaleGrade} position.`;
 
     // Prepare the Bedrock request body for Claude
     const bedrockRequest: BedrockClaudeRequest = {
@@ -74,7 +91,9 @@ Make it professional, clear, and compelling.`;
       body: JSON.stringify(bedrockRequest),
     });
 
-    console.log('Invoking Bedrock model:', BEDROCK_MODEL_ID);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Invoking Bedrock model:', BEDROCK_MODEL_ID);
+    }
     const response = await bedrockClient.send(command);
 
     // Parse the response
@@ -89,12 +108,14 @@ Make it professional, clear, and compelling.`;
       throw new Error('No description generated from Bedrock');
     }
 
-    // Log token usage for monitoring
-    console.log('Token usage:', {
-      input: responseBody.usage.input_tokens,
-      output: responseBody.usage.output_tokens,
-      total: responseBody.usage.input_tokens + responseBody.usage.output_tokens,
-    });
+    // Log token usage for monitoring (always log in production for cost tracking)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Token usage:', {
+        input: responseBody.usage.input_tokens,
+        output: responseBody.usage.output_tokens,
+        total: responseBody.usage.input_tokens + responseBody.usage.output_tokens,
+      });
+    }
 
     // Return the successful response
     const result: GenerateDescriptionResponse = {

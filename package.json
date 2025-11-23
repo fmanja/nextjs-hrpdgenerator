@@ -1,7 +1,24 @@
 {
   "name": "nextjs-hrpdgenerator",
   "version": "0.1.0",
-  "private": true,
+  "description": "AI-powered tool to generate professional federal government job descriptions using AWS Bedrock and Claude 3.5 Sonnet",
+  "license": "Apache-2.0",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fmanja/nextjs-hrpdgenerator.git"
+  },
+  "keywords": [
+    "nextjs",
+    "aws-bedrock",
+    "claude",
+    "ai",
+    "job-description",
+    "federal-government",
+    "hr",
+    "typescript"
+  ],
+  "author": "Frank Manja",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,7 +30,8 @@
     "lucide-react": "^0.525.0",
     "next": "16.0.1",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^20",

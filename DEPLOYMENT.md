@@ -1,13 +1,16 @@
 # AWS EC2 Deployment Guide
 
-Complete guide to deploy the HR Position Description Generator on AWS EC2.
+Complete guide to deploy the HR Position Description Generator (Federal Government Job Description Generator) on AWS EC2.
 
 ## 📋 Prerequisites
 
-- AWS Account
+- AWS Account with Bedrock access
 - AWS CLI installed and configured
 - SSH key pair for EC2 access
 - Domain name (optional, for custom domain)
+- Node.js 18+ (will be installed on EC2)
+- Claude model access enabled in your AWS region
+- All dependencies including Zod (for form validation)
 
 ## 🚀 Step-by-Step Deployment
 
@@ -52,6 +55,8 @@ sudo apt-get install -y nodejs
 # Verify installation
 node --version  # Should show v20.x.x
 npm --version   # Should show 10.x.x
+
+# Note: Next.js 16 requires Node.js 18.17 or later
 
 # Install PM2 (process manager)
 sudo npm install -g pm2
@@ -119,7 +124,7 @@ sudo systemctl restart nginx
 
 ```bash
 # Build the project locally
-cd /Users/frankmanja/NextjsApps/nextjs-hrpdgenerator
+cd /path/to/nextjs-hrpdgenerator
 npm run build
 
 # Create a deployment package (excluding node_modules and .next cache)
@@ -128,6 +133,9 @@ tar -czf hr-generator.tar.gz \
   --exclude='.next' \
   --exclude='.git' \
   --exclude='.env.local' \
+  --exclude='.env.example' \
+  --exclude='*.log' \
+  --exclude='.DS_Store' \
   .
 
 # Copy to EC2
@@ -146,8 +154,9 @@ cd ~/hr-generator
 # Extract the application
 tar -xzf ~/hr-generator.tar.gz
 
-# Install production dependencies
-npm ci --production
+# Install all dependencies (including devDependencies for build)
+# This includes Zod for form validation
+npm ci
 
 # Create .env.local with your AWS credentials
 nano .env.local
@@ -162,9 +171,17 @@ AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 ```
 
+**Note:** If using IAM roles (recommended), you only need `AWS_REGION` and `BEDROCK_MODEL_ID`. See the Security Best Practices section below.
+
 ```bash
 # Build the application on EC2
+# This will compile Next.js, TypeScript, and Tailwind CSS
+# Note: Build will succeed even without AWS credentials (lazy initialization)
 npm run build
+
+# Verify build was successful
+# You should see .next directory created with BUILD_ID file
+# Standalone build will be in .next/standalone directory
 
 # Start with PM2
 pm2 start npm --name "hr-generator" -- start
@@ -185,8 +202,8 @@ cd ~
 git clone YOUR_REPOSITORY_URL hr-generator
 cd hr-generator
 
-# Install dependencies
-npm ci --production
+# Install all dependencies (including devDependencies for build)
+npm ci
 
 # Create .env.local
 nano .env.local
@@ -212,23 +229,30 @@ Ensure your AWS IAM user/role has the following permissions:
     {
       "Effect": "Allow",
       "Action": [
-        "bedrock:*"
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
       ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-sonnet-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-*"
+      ]
     },
     {
       "Effect": "Allow",
       "Action": [
-        "sagemaker:ListHubContents"
+        "bedrock:ListFoundationModels"
       ],
-      "Resource": [
-        "arn:aws:sagemaker:*:aws:hub/SageMakerPublicHub",
-        "arn:aws:sagemaker:*:aws:hub/SageMakerPublicHub/*"
-      ]
+      "Resource": "*"
     }
   ]
 }
 ```
+
+**Important:** 
+- Request model access in AWS Bedrock Console → Model access
+- Select the Claude models you want to use
+- Wait for approval (usually instant for Anthropic models)
 
 ### 6. Configure SSL/HTTPS (Recommended for Production)
 
@@ -301,7 +325,7 @@ scp -i ~/path/to/hr-generator-key.pem \
 # On EC2 - deploy update
 cd ~/hr-generator
 tar -xzf ~/hr-generator.tar.gz
-npm ci --production
+npm ci
 npm run build
 pm2 restart hr-generator
 ```
@@ -313,6 +337,10 @@ pm2 restart hr-generator
 ```bash
 # Set proper permissions on .env.local
 chmod 600 ~/hr-generator/.env.local
+
+# Verify .env.local is not tracked in git
+cd ~/hr-generator
+git check-ignore .env.local || echo "WARNING: .env.local is not in .gitignore"
 ```
 
 ### 2. Use IAM Roles (Recommended)
@@ -335,7 +363,13 @@ Instead of storing AWS credentials in `.env.local`, attach an IAM role to your E
    BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
    ```
 
-The AWS SDK will automatically use the IAM role credentials.
+The AWS SDK will automatically use the IAM role credentials from the EC2 instance metadata service.
+
+**Benefits of IAM Roles:**
+- No credentials stored in files
+- Automatic credential rotation
+- More secure than access keys
+- Easier to manage permissions
 
 ### 3. Enable Auto-Updates
 
@@ -363,9 +397,24 @@ pm2 logs hr-generator --lines 100
 
 # Check if port 3000 is in use
 sudo netstat -tulpn | grep 3000
+# Or use: sudo ss -tulpn | grep 3000
+
+# Check Next.js build output
+cd ~/hr-generator
+cat .next/BUILD_ID 2>/dev/null || echo "Build not found - run npm run build"
 
 # Restart the application
 pm2 restart hr-generator
+
+# Check for TypeScript errors
+npm run build
+
+# Verify validation schemas are working
+# The build process will validate all Zod schemas compile correctly
+
+# Note: Build will succeed even without AWS credentials
+# AWS credentials are validated at runtime (lazy initialization)
+# This allows building the app before setting up environment variables
 ```
 
 ### Nginx Errors
@@ -389,6 +438,21 @@ aws bedrock list-foundation-models --region us-east-1
 
 # Check if IAM role is attached (if using IAM role)
 curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+
+# Test Bedrock model access
+aws bedrock get-foundation-model \
+  --model-identifier anthropic.claude-3-5-sonnet-20241022-v2:0 \
+  --region us-east-1
+
+# Check environment variables
+cd ~/hr-generator
+cat .env.local | grep -E "AWS_|BEDROCK"
+
+# Verify model is available in your region
+aws bedrock list-foundation-models \
+  --region us-east-1 \
+  --query "modelSummaries[?contains(modelId, 'claude')].modelId" \
+  --output table
 ```
 
 ### Out of Memory
@@ -415,8 +479,19 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 - **Instance Type:** t3.small or t3.medium
 - **Estimated Costs:**
   - EC2 t3.small: ~$15/month
-  - Bedrock (Claude 3.5 Sonnet): ~$0.003/1K input tokens, ~$0.015/1K output tokens
+  - EC2 t3.medium: ~$30/month
+  - Bedrock (Claude 3.5 Sonnet): 
+    - Input: ~$3.00 per 1M input tokens
+    - Output: ~$15.00 per 1M output tokens
+    - Typical job description: ~2K input + ~1.5K output = ~$0.03 per generation
   - Data Transfer: ~$0.09/GB after 15 GB/month
+
+### Cost-Saving Tips
+
+- Use Claude 3 Haiku for faster/cheaper generations if quality allows
+- Monitor Bedrock usage in CloudWatch
+- Set up billing alerts in AWS
+- Consider Reserved Instances for EC2 if running 24/7
 
 ### Auto-Scaling (Optional)
 
@@ -467,7 +542,18 @@ crontab -e
 
 ## 📈 Performance Optimization
 
-### Enable Gzip Compression
+### Built-in Optimizations
+
+The application includes several production optimizations configured in `next.config.ts`:
+
+- ✅ **Automatic Compression**: Gzip compression is enabled by default
+- ✅ **Security Headers**: HSTS, X-Frame-Options, X-Content-Type-Options, and more are automatically added
+- ✅ **Standalone Output**: Optimized standalone build reduces deployment size
+- ✅ **Image Optimization**: AVIF and WebP formats for better performance
+
+### Additional Nginx Gzip Compression (Optional)
+
+While Next.js handles compression, you can also enable it in Nginx for additional optimization:
 
 Edit Nginx config:
 
@@ -501,14 +587,44 @@ listen 443 ssl http2;
 4. ✅ Configure automated backups
 5. ✅ Enable CloudWatch logging
 6. ✅ Set up CI/CD pipeline (GitHub Actions, AWS CodeDeploy)
+7. ✅ Test the application with federal government job data
+8. ✅ Verify OPM job family and series data is working correctly
+9. ✅ Test form validation (Zod) - ensure all fields validate correctly
+10. ✅ Set up AWS Bedrock usage monitoring and alerts
+
+## 🚀 Production Features
+
+The application includes several production-ready features:
+
+- **Security Headers**: Automatically configured in `next.config.ts`
+  - Strict-Transport-Security (HSTS)
+  - X-Frame-Options
+  - X-Content-Type-Options
+  - X-XSS-Protection
+  - Referrer-Policy
+  - Permissions-Policy
+
+- **Build Optimizations**:
+  - Standalone output mode for efficient deployments
+  - Automatic compression
+  - Image optimization (AVIF/WebP)
+  - Lazy AWS client initialization (build-time safety)
+
+- **Runtime Safety**:
+  - Environment variables validated at runtime (not build time)
+  - Supports both IAM roles and access keys
+  - Graceful error handling
 
 ## 📚 Additional Resources
 
-- [Next.js Deployment Documentation](https://nextjs.org/docs/deployment)
+- [Next.js 16 Deployment Documentation](https://nextjs.org/docs/deployment)
 - [AWS EC2 User Guide](https://docs.aws.amazon.com/ec2/)
 - [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
+- [AWS Bedrock Model Access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)
 - [PM2 Documentation](https://pm2.keymetrics.io/)
 - [Nginx Documentation](https://nginx.org/en/docs/)
+- [OPM Position Classification](https://www.opm.gov/policy-data-oversight/classification-qualifications/classifying-general-schedule-positions/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 
 ---
 

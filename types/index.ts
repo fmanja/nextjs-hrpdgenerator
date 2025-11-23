@@ -6,14 +6,18 @@
 export interface JobDescriptionFormData {
   jobTitle: string;
   department: string;
-  experienceLevel: string;
+  payScaleGrade: string;
+  jobFamily: string;
+  series: string;
 }
 
 // API Request payload
 export interface GenerateDescriptionRequest {
   jobTitle: string;
   department: string;
-  experienceLevel: string;
+  payScaleGrade: string;
+  jobFamily: string;
+  series: string;
 }
 
 // API Response payload

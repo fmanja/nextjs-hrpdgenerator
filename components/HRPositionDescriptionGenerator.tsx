@@ -3,55 +3,109 @@
 import React, { useState, FormEvent, ChangeEvent } from 'react';
 import { FileText, Home, Upload, BookOpen, Settings, Copy, Check } from 'lucide-react';
 import { ThemeToggleCompact } from '@/components/ui/theme-toggle';
-import type {
-  JobDescriptionFormData,
-  GenerateDescriptionResponse
-} from '@/types';
+import type { GenerateDescriptionResponse } from '@/types';
+import { getOccupationalGroups, getSeriesByGroupCode } from '@/lib/opm-data';
+import { jobDescriptionFormSchema, type JobDescriptionFormData } from '@/lib/validation';
+import { ZodError } from 'zod';
 
 const HRPositionDescriptionGenerator: React.FC = () => {
   const [formData, setFormData] = useState<JobDescriptionFormData>({
     jobTitle: '',
     department: '',
-    experienceLevel: ''
+    payScaleGrade: '' as any,
+    jobFamily: '',
+    series: ''
   });
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof JobDescriptionFormData, string>>>({});
   const [generatedDescription, setGeneratedDescription] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
 
+  const occupationalGroups = getOccupationalGroups();
+  const availableSeries = formData.jobFamily 
+    ? getSeriesByGroupCode(formData.jobFamily)
+    : [];
+
   // Handle input changes
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
+    
+    // Clear error for this field when user starts typing
+    if (formErrors[name as keyof JobDescriptionFormData]) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name as keyof JobDescriptionFormData];
+        return newErrors;
+      });
+    }
+    
+    // If jobFamily changes, reset series
+    if (name === 'jobFamily') {
+      setFormData(prevState => ({
+        ...prevState,
+        [name]: value,
+        series: '' // Reset series when jobFamily changes
+      }));
+      // Clear series error when jobFamily changes
+      if (formErrors.series) {
+        setFormErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.series;
+          return newErrors;
+        });
+      }
+    } else {
+      setFormData(prevState => ({
+        ...prevState,
+        [name]: value
+      }));
+    }
   };
 
   // Handle form submission
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    // Validate required fields
-    if (!formData.jobTitle || !formData.department || !formData.experienceLevel) {
-      alert('Please fill in all required fields');
-      return;
+    // Validate form data with Zod
+    let validatedData: JobDescriptionFormData;
+    try {
+      validatedData = jobDescriptionFormSchema.parse(formData);
+      
+      // Clear any previous errors
+      setFormErrors({});
+    } catch (error: any) {
+      // Handle Zod validation errors
+      if (error instanceof ZodError) {
+        const fieldErrors: Partial<Record<keyof JobDescriptionFormData, string>> = {};
+        error.errors.forEach((err) => {
+          const field = err.path[0] as keyof JobDescriptionFormData;
+          if (field) {
+            fieldErrors[field] = err.message;
+          }
+        });
+        setFormErrors(fieldErrors);
+        return;
+      }
+      // If it's not a ZodError, rethrow it
+      throw error;
     }
 
     setIsLoading(true);
     setCurrentStep(2);
 
     try {
-      console.log('Making API call to backend server...');
       const response = await fetch('/api/generate-description', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jobTitle: formData.jobTitle,
-          department: formData.department,
-          experienceLevel: formData.experienceLevel
+          jobTitle: validatedData.jobTitle,
+          department: validatedData.department,
+          payScaleGrade: validatedData.payScaleGrade,
+          jobFamily: validatedData.jobFamily,
+          series: validatedData.series
         })
       });
 
@@ -112,7 +166,7 @@ const HRPositionDescriptionGenerator: React.FC = () => {
             <nav className="flex-1 space-y-1 px-2 py-4">
               <a
                 href="#"
-                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                className="hidden w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 <Home className="mr-3 h-5 w-5" />
                 Dashboard
@@ -126,21 +180,21 @@ const HRPositionDescriptionGenerator: React.FC = () => {
               </a>
               <a
                 href="#"
-                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                className="hidden w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 <Upload className="mr-3 h-5 w-5" />
                 Upload Template
               </a>
               <a
                 href="#"
-                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                className="hidden w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 <BookOpen className="mr-3 h-5 w-5" />
                 PD Library
               </a>
               <a
                 href="#"
-                className="w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                className="hidden w-full flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 <Settings className="mr-3 h-5 w-5" />
                 Settings
@@ -215,9 +269,16 @@ const HRPositionDescriptionGenerator: React.FC = () => {
                         value={formData.jobTitle}
                         onChange={handleInputChange}
                         placeholder="Senior Software Engineer"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                          formErrors.jobTitle
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}
                         disabled={isLoading}
                       />
+                      {formErrors.jobTitle && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.jobTitle}</p>
+                      )}
                     </div>
 
                     <div>
@@ -231,25 +292,136 @@ const HRPositionDescriptionGenerator: React.FC = () => {
                         value={formData.department}
                         onChange={handleInputChange}
                         placeholder="Engineering"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                          formErrors.department
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}
                         disabled={isLoading}
                       />
+                      {formErrors.department && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.department}</p>
+                      )}
                     </div>
 
                     <div>
-                      <label htmlFor="experienceLevel" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Experience Level
+                      <label htmlFor="payScaleGrade" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Pay Scale & Grade <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        id="experienceLevel"
-                        name="experienceLevel"
-                        value={formData.experienceLevel}
+                      <select
+                        id="payScaleGrade"
+                        name="payScaleGrade"
+                        value={formData.payScaleGrade}
                         onChange={handleInputChange}
-                        placeholder="5+ years"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                          formErrors.payScaleGrade
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}
                         disabled={isLoading}
-                      />
+                      >
+                        <option value="">Select Pay Scale & Grade</option>
+                        <optgroup label="General Schedule (GS)">
+                          <option value="GS-1">GS-1</option>
+                          <option value="GS-2">GS-2</option>
+                          <option value="GS-3">GS-3</option>
+                          <option value="GS-4">GS-4</option>
+                          <option value="GS-5">GS-5</option>
+                          <option value="GS-6">GS-6</option>
+                          <option value="GS-7">GS-7</option>
+                          <option value="GS-8">GS-8</option>
+                          <option value="GS-9">GS-9</option>
+                          <option value="GS-10">GS-10</option>
+                          <option value="GS-11">GS-11</option>
+                          <option value="GS-12">GS-12</option>
+                          <option value="GS-13">GS-13</option>
+                          <option value="GS-14">GS-14</option>
+                          <option value="GS-15">GS-15</option>
+                        </optgroup>
+                        <optgroup label="Senior Executive Service (SES)">
+                          <option value="SES">SES (Senior Executive Service)</option>
+                        </optgroup>
+                        <optgroup label="Executive Schedule (ES)">
+                          <option value="ES-1">ES-1</option>
+                          <option value="ES-2">ES-2</option>
+                          <option value="ES-3">ES-3</option>
+                          <option value="ES-4">ES-4</option>
+                          <option value="ES-5">ES-5</option>
+                          <option value="ES-6">ES-6</option>
+                        </optgroup>
+                        <optgroup label="Senior Level (SL)">
+                          <option value="SL">SL (Senior Level)</option>
+                        </optgroup>
+                        <optgroup label="Scientific and Professional (ST)">
+                          <option value="ST">ST (Scientific and Professional)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                          <option value="GM">GM (GM/GS-13/14/15)</option>
+                          <option value="GG">GG (GG-13/14/15)</option>
+                          <option value="AD">AD (Administratively Determined)</option>
+                        </optgroup>
+                      </select>
+                      {formErrors.payScaleGrade && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.payScaleGrade}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label htmlFor="jobFamily" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Job Family <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="jobFamily"
+                        name="jobFamily"
+                        value={formData.jobFamily}
+                        onChange={handleInputChange}
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                          formErrors.jobFamily
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}
+                        disabled={isLoading}
+                      >
+                        <option value="">Select Job Family</option>
+                        {occupationalGroups.map((group) => (
+                          <option key={group.code} value={group.code}>
+                            {group.code} - {group.title}
+                          </option>
+                        ))}
+                      </select>
+                      {formErrors.jobFamily && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.jobFamily}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label htmlFor="series" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Series <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="series"
+                        name="series"
+                        value={formData.series}
+                        onChange={handleInputChange}
+                        disabled={!formData.jobFamily || isLoading}
+                        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          formErrors.series
+                            ? 'border-red-500 dark:border-red-500 focus:ring-red-500 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
+                        }`}
+                      >
+                        <option value="">
+                          {formData.jobFamily ? 'Select Series' : 'Select Job Family first'}
+                        </option>
+                        {availableSeries.map((series) => (
+                          <option key={series.code} value={series.code}>
+                            {series.code} - {series.title}
+                          </option>
+                        ))}
+                      </select>
+                      {formErrors.series && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.series}</p>
+                      )}
                     </div>
                   </div>
 

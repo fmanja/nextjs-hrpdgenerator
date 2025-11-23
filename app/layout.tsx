@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI HR Position Description Generator",
-  description: "AI-powered tool to generate professional job descriptions using AWS Bedrock and Claude",
+  title: "AI Federal Position Description Generator",
+  description: "AI-powered tool to generate professional federal government job descriptions using AWS Bedrock and Claude",
 };
 
 export default function RootLayout({
