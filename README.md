@@ -6,8 +6,17 @@
 
 An AI-powered tool to generate professional federal government job descriptions using **AWS Bedrock** with **Claude 3.5 Sonnet**. Built with **Next.js 16**, **TypeScript**, and deployed on AWS EC2.
 
+## 📸 Screenshots
+
+### Job Description Form
+![Job Description Form](./images/PD_Generator_Form.png)
+
+### Generated Results
+![Generated Results](./images/PD_Generator_Results.png)
+
 ## 📋 Table of Contents
 
+- [Screenshots](#-screenshots)
 - [Features](#-features)
 - [Architecture](#-architecture)
 - [Getting Started](#-getting-started)

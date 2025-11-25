@@ -125,11 +125,16 @@ Make it professional, clear, and compelling. Ensure all qualifications and respo
 
     return NextResponse.json(result, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error generating job description:', error);
 
+    // Type guard for Error objects
+    const isError = (err: unknown): err is Error & { name?: string } => {
+      return err instanceof Error;
+    };
+
     // Handle specific AWS errors
-    if (error.name === 'ResourceNotFoundException') {
+    if (isError(error) && error.name === 'ResourceNotFoundException') {
       return NextResponse.json(
         {
           success: false,
@@ -139,7 +144,7 @@ Make it professional, clear, and compelling. Ensure all qualifications and respo
       );
     }
 
-    if (error.name === 'AccessDeniedException') {
+    if (isError(error) && error.name === 'AccessDeniedException') {
       return NextResponse.json(
         {
           success: false,
@@ -150,10 +155,11 @@ Make it professional, clear, and compelling. Ensure all qualifications and respo
     }
 
     // Generic error response
+    const errorMessage = isError(error) ? error.message : 'Failed to generate job description. Please try again.';
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to generate job description. Please try again.',
+        error: errorMessage,
       },
       { status: 500 }
     );

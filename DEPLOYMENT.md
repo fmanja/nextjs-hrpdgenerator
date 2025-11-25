@@ -12,9 +12,327 @@ Complete guide to deploy the HR Position Description Generator (Federal Governme
 - Claude model access enabled in your AWS region
 - All dependencies including Zod (for form validation)
 
+## 👤 Setting up a Deployment User Account
+
+For security and operational best practices, create a dedicated IAM user for deployment operations instead of using your root AWS account.
+
+### Create IAM User for Deployment
+
+1. **Navigate to IAM Console:**
+   - Go to **AWS Console → IAM → Users → Create User**
+
+2. **Configure User Details:**
+   - **User name:** `hr-generator-deploy` (or your preferred name)
+   - **Access type:** Select "Programmatic access" (for AWS CLI/API access)
+   - Click **Next: Permissions**
+
+3. **Attach Policies:**
+   - Select "Attach policies directly"
+   - Attach the following policies:
+     - `AmazonEC2FullAccess` (or create a custom policy with minimal required permissions)
+     - `IAMFullAccess` (for attaching roles to EC2 instances)
+     - Custom Bedrock policy (see IAM Access Configuration section below)
+   - Click **Next: Tags** (optional)
+   - Click **Next: Review**
+
+4. **Review and Create:**
+   - Review the configuration
+   - Click **Create User**
+
+5. **Save Credentials:**
+   - **IMPORTANT:** Download or copy the Access Key ID and Secret Access Key
+   - Store these securely (e.g., password manager, AWS Secrets Manager)
+   - You won't be able to view the secret key again after this step
+
+6. **Configure AWS CLI:**
+   ```bash
+   # Configure AWS CLI with the new user credentials
+   aws configure
+   # Enter:
+   # - AWS Access Key ID: [your access key]
+   # - AWS Secret Access Key: [your secret key]
+   # - Default region: us-east-1 (or your preferred region)
+   # - Default output format: json
+   
+   # Verify the configuration
+   aws sts get-caller-identity
+   ```
+
+### Best Practices for Deployment User
+
+- **Enable MFA:** Require multi-factor authentication for the deployment user
+- **Rotate Credentials:** Regularly rotate access keys (every 90 days recommended)
+- **Use IAM Roles:** For EC2 instances, prefer IAM roles over access keys when possible
+- **Least Privilege:** Grant only the minimum permissions required for deployment
+- **Separate Users:** Use different users for different environments (dev, staging, prod)
+
+## 🔐 IAM Access Configuration
+
+Proper IAM configuration ensures secure access to AWS services while following the principle of least privilege.
+
+### Create Custom IAM Policy for Bedrock Access
+
+Instead of using full access policies, create a custom policy with only the required permissions:
+
+1. **Navigate to IAM Policies:**
+   - Go to **AWS Console → IAM → Policies → Create Policy**
+
+2. **Create Policy (JSON):**
+   - Click **JSON** tab
+   - Paste the following policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockInvokeModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-sonnet-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-*"
+      ]
+    },
+    {
+      "Sid": "BedrockListModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ListFoundationModels"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+3. **Name and Create:**
+   - **Policy name:** `HRGeneratorBedrockAccess`
+   - **Description:** "Allows Bedrock model invocation for HR Generator application"
+   - Click **Create Policy**
+
+### Create IAM Role for EC2 Instance
+
+For better security, create an IAM role that EC2 instances can assume:
+
+1. **Create IAM Role:**
+   - Go to **AWS Console → IAM → Roles → Create Role**
+   - **Trusted entity type:** AWS service
+   - **Use case:** EC2
+   - Click **Next**
+
+2. **Attach Permissions:**
+   - Search for and select `HRGeneratorBedrockAccess` (the policy created above)
+   - Optionally attach `CloudWatchAgentServerPolicy` for monitoring
+   - Click **Next**
+
+3. **Name and Create:**
+   - **Role name:** `EC2-HRGenerator-BedrockAccess`
+   - **Description:** "IAM role for EC2 instances running HR Generator with Bedrock access"
+   - Click **Create Role**
+
+4. **Attach Role to EC2 Instance:**
+   - Go to **EC2 → Instances**
+   - Select your instance → **Actions → Security → Modify IAM role**
+   - Select `EC2-HRGenerator-BedrockAccess`
+   - Click **Update IAM role**
+
+### Additional IAM Policies (Optional)
+
+For advanced deployments, you may need additional permissions:
+
+**EC2 Management Policy (for deployment user):**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:RebootInstances",
+        "ec2:ModifyInstanceAttribute"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AssociateIamInstanceProfile",
+        "ec2:ReplaceIamInstanceProfileAssociation"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**VPC Management Policy (if managing VPC resources):**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeInternetGateways"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### Verify IAM Configuration
+
+```bash
+# Test Bedrock access with the deployment user
+aws bedrock list-foundation-models --region us-east-1
+
+# Verify IAM role is attached to EC2 instance (from within the instance)
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+
+# Test Bedrock invocation (if role is properly configured)
+aws bedrock invoke-model \
+  --model-id anthropic.claude-3-haiku-20240307-v1:0 \
+  --body '{"anthropic_version":"bedrock-2023-05-31","max_tokens":10,"messages":[{"role":"user","content":"test"}]}' \
+  --region us-east-1
+```
+
+## 🌐 VPC Configuration
+
+A Virtual Private Cloud (VPC) provides network isolation and security for your EC2 instances. While AWS provides a default VPC, creating a custom VPC gives you more control.
+
+### Option A: Use Default VPC (Quick Start)
+
+If you're getting started quickly, AWS provides a default VPC in each region:
+
+1. **Verify Default VPC:**
+   - Go to **AWS Console → VPC → Your VPCs**
+   - You should see a VPC named "default" with CIDR `172.31.0.0/16`
+
+2. **Use Default VPC for EC2:**
+   - When launching EC2 instance, select the default VPC
+   - Select a default subnet in your preferred availability zone
+
+**Pros:** Quick setup, no configuration needed  
+**Cons:** Less control, shared with other default resources
+
+### Option B: Create Custom VPC (Recommended for Production)
+
+For production deployments, create a dedicated VPC:
+
+1. **Create VPC:**
+   - Go to **AWS Console → VPC → Your VPCs → Create VPC**
+   - **Name tag:** `hr-generator-vpc`
+   - **IPv4 CIDR block:** `10.0.0.0/16` (provides 65,536 IP addresses)
+   - **IPv6 CIDR block:** No IPv6 CIDR block (unless needed)
+   - **Tenancy:** Default
+   - Click **Create VPC**
+
+2. **Create Internet Gateway:**
+   - Go to **VPC → Internet Gateways → Create Internet Gateway**
+   - **Name tag:** `hr-generator-igw`
+   - Click **Create Internet Gateway**
+   - Select the gateway → **Actions → Attach to VPC**
+   - Select `hr-generator-vpc` → **Attach Internet Gateway**
+
+3. **Create Subnets:**
+   
+   **Public Subnet (for web-facing instances):**
+   - Go to **VPC → Subnets → Create Subnet**
+   - **VPC:** Select `hr-generator-vpc`
+   - **Subnet name:** `hr-generator-public-subnet-1a`
+   - **Availability Zone:** `us-east-1a` (or your preferred AZ)
+   - **IPv4 CIDR block:** `10.0.1.0/24`
+   - Click **Create Subnet**
+   
+   **Private Subnet (optional, for enhanced security):**
+   - Create another subnet: `hr-generator-private-subnet-1a`
+   - **Availability Zone:** `us-east-1a`
+   - **IPv4 CIDR block:** `10.0.2.0/24`
+   - **Note:** Private subnets require NAT Gateway for outbound internet access
+
+4. **Configure Route Table:**
+   - Go to **VPC → Route Tables**
+   - Find the route table associated with your VPC
+   - **Name:** `hr-generator-public-rt`
+   - Click **Edit Routes → Add Route**
+   - **Destination:** `0.0.0.0/0`
+   - **Target:** Select the Internet Gateway (`hr-generator-igw`)
+   - Click **Save Changes**
+   - Click **Subnet Associations → Edit Subnet Associations**
+   - Select `hr-generator-public-subnet-1a`
+   - Click **Save Associations**
+
+5. **Create Security Group:**
+   - Go to **EC2 → Security Groups → Create Security Group**
+   - **Name:** `hr-generator-sg`
+   - **Description:** "Security group for HR Generator EC2 instances"
+   - **VPC:** Select `hr-generator-vpc`
+   - **Inbound Rules:**
+     - SSH (22) from your IP: `0.0.0.0/0` (restrict to your IP for production)
+     - HTTP (80) from anywhere: `0.0.0.0/0`
+     - HTTPS (443) from anywhere: `0.0.0.0/0`
+     - Custom TCP (3000) from anywhere: `0.0.0.0/0` (for testing, remove in production)
+   - **Outbound Rules:** Allow all (default)
+   - Click **Create Security Group**
+
+### VPC Configuration for EC2 Launch
+
+When launching your EC2 instance:
+
+1. **Network Settings:**
+   - **VPC:** Select `hr-generator-vpc` (or default VPC)
+   - **Subnet:** Select `hr-generator-public-subnet-1a` (or default subnet)
+   - **Auto-assign Public IP:** Enable (for public subnets)
+   - **Security Group:** Select `hr-generator-sg` (or create new)
+
+2. **Advanced Network Configuration (Optional):**
+   - **Elastic IP:** Allocate and associate for static IP address
+   - **Placement Group:** Not needed for single instance
+   - **Network Interfaces:** Use default
+
+### VPC Best Practices
+
+- **Multi-AZ Deployment:** Create subnets in multiple availability zones for high availability
+- **NAT Gateway:** Use NAT Gateway for private subnets to allow outbound internet access without public IPs
+- **Network ACLs:** Use Network ACLs for additional subnet-level security (optional)
+- **VPC Flow Logs:** Enable VPC Flow Logs for network monitoring and troubleshooting
+- **VPN/PrivateLink:** Consider AWS PrivateLink for secure Bedrock access without internet exposure
+
+### Verify VPC Configuration
+
+```bash
+# From AWS CLI, verify VPC configuration
+aws ec2 describe-vpcs --filters "Name=tag:Name,Values=hr-generator-vpc"
+
+# List subnets in your VPC
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-xxxxx"
+
+# Check security group rules
+aws ec2 describe-security-groups --group-names hr-generator-sg
+
+# Test connectivity from EC2 instance
+ping -c 3 8.8.8.8  # Test internet connectivity
+```
+
 ## 🚀 Step-by-Step Deployment
 
 ### 1. Launch EC2 Instance
+
+**Note:** For VPC setup instructions, see the [VPC Configuration](#-vpc-configuration) section above. Ensure you have a VPC, subnet, and security group configured before launching the instance.
 
 #### A. Create EC2 Instance via AWS Console
 
@@ -25,11 +343,16 @@ Complete guide to deploy the HR Position Description Generator (Federal Governme
    - **Instance Type:** `t2.micro` (free tier) or `t3.small` (recommended for production)
    - **Key pair:** Select or create a new key pair
    - **Network settings:**
-     - Allow SSH (port 22) from your IP
-     - Allow HTTP (port 80) from anywhere
-     - Allow HTTPS (port 443) from anywhere
-     - Allow Custom TCP (port 3000) from anywhere (for testing)
+     - **VPC:** Select your VPC (default VPC or `hr-generator-vpc` from VPC Configuration section)
+     - **Subnet:** Select a public subnet (e.g., `hr-generator-public-subnet-1a`)
+     - **Auto-assign Public IP:** Enable (for public subnets)
+     - **Security Group:** Select existing security group (e.g., `hr-generator-sg`) or create new with:
+       - Allow SSH (port 22) from your IP
+       - Allow HTTP (port 80) from anywhere
+       - Allow HTTPS (port 443) from anywhere
+       - Allow Custom TCP (port 3000) from anywhere (for testing, remove in production)
    - **Storage:** 20 GB gp3
+   - **IAM instance profile:** Select `EC2-HRGenerator-BedrockAccess` (if created in IAM Access Configuration section)
 3. Click **Launch Instance**
 
 #### B. Connect to EC2 Instance
@@ -220,7 +543,9 @@ pm2 startup systemd
 
 ### 5. Configure AWS Bedrock Permissions
 
-Ensure your AWS IAM user/role has the following permissions:
+**Note:** For detailed IAM setup instructions, see the [IAM Access Configuration](#-iam-access-configuration) section above.
+
+Ensure your AWS IAM user/role has the following permissions (these are included in the `HRGeneratorBedrockAccess` policy created in the IAM Access Configuration section):
 
 ```json
 {
@@ -253,6 +578,7 @@ Ensure your AWS IAM user/role has the following permissions:
 - Request model access in AWS Bedrock Console → Model access
 - Select the Claude models you want to use
 - Wait for approval (usually instant for Anthropic models)
+- If using IAM roles (recommended), ensure the role `EC2-HRGenerator-BedrockAccess` is attached to your EC2 instance
 
 ### 6. Configure SSL/HTTPS (Recommended for Production)
 
@@ -345,19 +671,15 @@ git check-ignore .env.local || echo "WARNING: .env.local is not in .gitignore"
 
 ### 2. Use IAM Roles (Recommended)
 
-Instead of storing AWS credentials in `.env.local`, attach an IAM role to your EC2 instance:
+**Note:** For detailed IAM role setup instructions, see the [IAM Access Configuration](#-iam-access-configuration) section above.
 
-1. **Create IAM Role:**
-   - Go to IAM → Roles → Create Role
-   - Select "AWS service" → "EC2"
-   - Attach policy with Bedrock permissions
-   - Name: `EC2-Bedrock-Access`
+Instead of storing AWS credentials in `.env.local`, attach an IAM role to your EC2 instance. Follow the steps in the IAM Access Configuration section to create the `EC2-HRGenerator-BedrockAccess` role, then:
 
-2. **Attach to EC2:**
+1. **Attach to EC2:**
    - EC2 → Select instance → Actions → Security → Modify IAM role
-   - Select `EC2-Bedrock-Access`
+   - Select `EC2-HRGenerator-BedrockAccess` (created in IAM Access Configuration section)
 
-3. **Update .env.local (remove AWS credentials):**
+2. **Update .env.local (remove AWS credentials):**
    ```env
    AWS_REGION=us-east-1
    BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0

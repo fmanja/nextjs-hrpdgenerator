@@ -9,10 +9,10 @@ import { jobDescriptionFormSchema, type JobDescriptionFormData } from '@/lib/val
 import { ZodError } from 'zod';
 
 const HRPositionDescriptionGenerator: React.FC = () => {
-  const [formData, setFormData] = useState<JobDescriptionFormData>({
+  const [formData, setFormData] = useState<Omit<JobDescriptionFormData, 'payScaleGrade'> & { payScaleGrade: JobDescriptionFormData['payScaleGrade'] | '' }>({
     jobTitle: '',
     department: '',
-    payScaleGrade: '' as any,
+    payScaleGrade: '',
     jobFamily: '',
     series: ''
   });
@@ -74,7 +74,7 @@ const HRPositionDescriptionGenerator: React.FC = () => {
       
       // Clear any previous errors
       setFormErrors({});
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle Zod validation errors
       if (error instanceof ZodError) {
         const fieldErrors: Partial<Record<keyof JobDescriptionFormData, string>> = {};
@@ -129,9 +129,10 @@ const HRPositionDescriptionGenerator: React.FC = () => {
       setGeneratedDescription(data.description);
       setCurrentStep(3);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error details:', error);
-      alert(`Error generating description: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      alert(`Error generating description: ${errorMessage}`);
       setCurrentStep(1);
     } finally {
       setIsLoading(false);
