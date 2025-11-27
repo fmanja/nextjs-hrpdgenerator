@@ -4,7 +4,9 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 
-An AI-powered tool to generate professional federal government job descriptions using **AWS Bedrock** with **Claude 3.5 Sonnet**. Built with **Next.js 16**, **TypeScript**, and deployed on AWS EC2.
+An AI-powered tool to generate professional federal government job descriptions using **AWS Bedrock** with **Claude 3.5 Sonnet**. Built with **Next.js 16**, **TypeScript**, and deployable on AWS EC2, Vercel, or other Node.js hosted environment.
+
+A live demo is available at https://nextjs-hrpdgenerator.vercel.app. 
 
 ## 📸 Screenshots
 
