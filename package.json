@@ -28,7 +28,7 @@
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.921.0",
     "lucide-react": "^0.525.0",
-    "next": "16.0.1",
+    "next": "^16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "zod": "^3.25.0"
@@ -39,7 +39,7 @@
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
-    "eslint-config-next": "16.0.1",
+    "eslint-config-next": "16.0.7",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
