@@ -66,10 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.0.1] - 2025-01-27
 
 ### Changed
 - Updated Next.js from 16.0.7 to 16.0.10
+
+---
+
+## [Unreleased]
 
 ### Planned
 - Additional job description templates
@@ -81,5 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.0.1]: https://github.com/fmanja/nextjs-hrpdgenerator/releases/tag/v1.0.1
 [0.1.0]: https://github.com/fmanja/nextjs-hrpdgenerator/releases/tag/v0.1.0
 

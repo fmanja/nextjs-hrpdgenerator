@@ -1,6 +1,6 @@
 {
   "name": "nextjs-hrpdgenerator",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "AI-powered tool to generate professional federal government job descriptions using AWS Bedrock and Claude 3.5 Sonnet",
   "license": "Apache-2.0",
   "private": false,
