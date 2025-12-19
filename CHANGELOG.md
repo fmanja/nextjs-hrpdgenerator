@@ -68,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Updated Next.js from 16.0.7 to 16.0.10
+
 ### Planned
 - Additional job description templates
 - Export functionality (PDF, DOCX)
