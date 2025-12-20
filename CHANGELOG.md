@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Planned
+- Additional job description templates
+- Export functionality (PDF, DOCX)
+- Job description history/saving
+- User authentication (optional)
+- Multi-language support
+- Enhanced customization options
+
+---
+
+## [1.0.1] - 2025-12-19
+
+### Changed
+- Updated Next.js from 16.0.7 to 16.0.10
+
+### Security
+- Upgraded dependencies to resolve security vulnerabilities
+- Applied security patches across all package dependencies
+
+---
+
 ## [0.1.0] - 2025-11-23
 
 ### Added
@@ -63,25 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed React hooks violations in theme provider
 - Improved error handling with proper type guards
 - Enhanced type safety throughout the application
-
----
-
-## [1.0.1] - 2025-01-27
-
-### Changed
-- Updated Next.js from 16.0.7 to 16.0.10
-
----
-
-## [Unreleased]
-
-### Planned
-- Additional job description templates
-- Export functionality (PDF, DOCX)
-- Job description history/saving
-- User authentication (optional)
-- Multi-language support
-- Enhanced customization options
 
 ---
 
